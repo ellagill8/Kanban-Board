@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1020">
+  <title>Flowboard — Kanban</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-deep: #070b16;
+      --surface: rgba(17, 24, 43, 0.78);
+      --surface-strong: rgba(24, 33, 56, 0.96);
+      --text: #f5f7ff;
+      --muted: #9ca7bd;
+      --line: rgba(255, 255, 255, 0.08);
+      --todo: #68a7ff;
+      --doing: #f6bd54;
+      --done: #56d6a2;
+      --danger: #ff7188;
+      --radius-xl: 24px;
+      --radius-lg: 17px;
+      --radius-md: 12px;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(75, 113, 255, 0.2), transparent 32rem),
+        radial-gradient(circle at 88% 82%, rgba(69, 211, 160, 0.13), transparent 34rem),
+        linear-gradient(145deg, #070b16 0%, #11182b 50%, #0b1222 100%);
+      background-attachment: fixed;
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      content: "";
+      opacity: 0.28;
+      background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 85%);
+    }
+
+    button, input { font: inherit; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: clamp(24px, 4vw, 58px);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #8aa4ff;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      line-height: 1;
+      letter-spacing: -0.055em;
+    }
+
+    .subtitle {
+      max-width: 560px;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+      line-height: 1.6;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 34px;
+      margin-bottom: 30px;
+    }
+
+    .progress-panel {
+      width: min(430px, 100%);
+      padding: 18px 20px 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: rgba(16, 24, 43, 0.64);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(18px);
+    }
+
+    .progress-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .progress-label { color: var(--muted); font-size: 0.84rem; }
+    .progress-label strong { color: var(--text); font-size: 1.08rem; }
+
+    .percent {
+      color: #b9c9ff;
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .progress-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #5d8dff, #816cff 48%, #51d6a2);
+      box-shadow: 0 0 18px rgba(104, 126, 255, 0.55);
+      transition: width 600ms cubic-bezier(.2,.8,.2,1);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: start;
+      gap: clamp(16px, 2.2vw, 28px);
+    }
+
+    .column {
+      --accent: var(--todo);
+      min-height: 460px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-top: 2px solid var(--accent);
+      border-radius: var(--radius-xl);
+      background: var(--surface);
+      box-shadow: var(--shadow), 0 -10px 35px color-mix(in srgb, var(--accent) 14%, transparent);
+      backdrop-filter: blur(18px);
+      transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+    }
+
+    .column[data-column="doing"] { --accent: var(--doing); }
+    .column[data-column="done"] { --accent: var(--done); }
+
+    .column.drag-over {
+      border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+      background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+      transform: translateY(-2px);
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .column-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    .column-title::before {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 14px var(--accent);
+      content: "";
+    }
+
+    .count {
+      min-width: 28px;
+      padding: 4px 8px;
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      border-radius: 999px;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 11%, transparent);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 9px;
+      margin-bottom: 17px;
+    }
+
+    .task-input {
+      min-width: 0;
+      flex: 1;
+      padding: 11px 13px;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: var(--radius-md);
+      outline: none;
+      color: var(--text);
+      background: rgba(4, 8, 19, 0.4);
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .task-input::placeholder { color: #707b91; }
+    .task-input:focus {
+      border-color: color-mix(in srgb, var(--todo) 68%, transparent);
+      box-shadow: 0 0 0 3px rgba(104, 167, 255, 0.12);
+    }
+
+    .add-button {
+      padding: 0 14px;
+      border: 0;
+      border-radius: var(--radius-md);
+      color: #07101e;
+      background: linear-gradient(135deg, #83b8ff, #5c8df4);
+      box-shadow: 0 8px 20px rgba(63, 118, 230, 0.24);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 800;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    .add-button:hover { transform: translateY(-2px); box-shadow: 0 11px 25px rgba(63,118,230,.34); }
+    .add-button:active { transform: translateY(0); }
+
+    .card-list {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      min-height: 330px;
+    }
+
+    .task-card {
+      position: relative;
+      padding: 16px 15px 13px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(145deg, rgba(35, 45, 70, .98), rgba(24, 32, 53, .98));
+      box-shadow: 0 10px 24px rgba(0,0,0,.2);
+      cursor: grab;
+      transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      animation: card-in 280ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .task-card::before {
+      position: absolute;
+      top: 0;
+      left: 14px;
+      width: 38px;
+      height: 2px;
+      border-radius: 3px;
+      background: var(--accent);
+      content: "";
+    }
+
+    .task-card:hover {
+      border-color: color-mix(in srgb, var(--accent) 26%, rgba(255,255,255,.08));
+      box-shadow: 0 15px 30px rgba(0,0,0,.28), 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent);
+      transform: translateY(-3px);
+    }
+
+    .task-card:active { cursor: grabbing; }
+    .task-card.dragging { opacity: 0.35; transform: scale(.97); }
+    .task-card.removing { pointer-events: none; animation: card-out 190ms ease forwards; }
+
+    .task-text {
+      margin: 0 28px 16px 0;
+      overflow-wrap: anywhere;
+      font-size: 0.94rem;
+      font-weight: 650;
+      line-height: 1.45;
+    }
+
+    .delete-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 9px;
+      color: #8290a9;
+      background: transparent;
+      cursor: pointer;
+      font-size: 1.15rem;
+      line-height: 1;
+      transition: color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .delete-button:hover { color: var(--danger); background: rgba(255,113,136,.1); transform: rotate(5deg); }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+
+    .status-label {
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .move-buttons { display: flex; gap: 6px; }
+
+    .move-button {
+      width: 30px;
+      height: 27px;
+      padding: 0;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 8px;
+      color: #b8c1d3;
+      background: rgba(255,255,255,.04);
+      cursor: pointer;
+      transition: color 150ms ease, border-color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .move-button:hover:not(:disabled) {
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      transform: translateY(-1px);
+    }
+
+    .move-button:disabled { opacity: .25; cursor: not-allowed; }
+
+    .empty-state {
+      display: none;
+      place-items: center;
+      min-height: 150px;
+      border: 1px dashed rgba(255,255,255,.09);
+      border-radius: var(--radius-lg);
+      color: #68748b;
+      font-size: .82rem;
+      text-align: center;
+    }
+
+    .card-list:empty + .empty-state { display: grid; }
+
+    button:focus-visible, input:focus-visible, .task-card:focus-visible {
+      outline: 2px solid #9bbcff;
+      outline-offset: 3px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(10px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes card-out {
+      to { opacity: 0; transform: translateX(12px) scale(.96); }
+    }
+
+    @media (max-width: 900px) {
+      .topbar { align-items: stretch; flex-direction: column; }
+      .progress-panel { width: 100%; }
+      .board { grid-template-columns: 1fr; }
+      .column { min-height: 300px; }
+      .card-list { min-height: 90px; }
+    }
+
+    @media (max-width: 520px) {
+      .app { padding: 24px 14px 36px; }
+      .column { padding: 16px; border-radius: 20px; }
+      .add-form { flex-direction: column; }
+      .task-input, .add-button { min-height: 44px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 1ms !important;
+        transition-duration: 1ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Personal workspace</p>
+        <h1>Flowboard</h1>
+        <p class="subtitle">Keep the work moving. Add a task, drag it through your workflow, and watch your progress take shape.</p>
+      </div>
+
+      <section class="progress-panel" aria-labelledby="progress-title">
+        <div class="progress-meta">
+          <span id="progress-title" class="progress-label"><strong id="total-tasks">0</strong> total tasks</span>
+          <span id="percent-complete" class="percent">0% complete</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-label="Task completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-fill"></div>
+        </div>
+      </section>
+    </header>
+
+    <section class="board" aria-label="Kanban board">
+      <section class="column" data-column="todo" aria-labelledby="todo-heading">
+        <header class="column-header">
+          <h2 id="todo-heading" class="column-title">To Do</h2>
+          <span class="count" data-count="todo">0</span>
+        </header>
+        <form class="add-form" id="add-form">
+          <label class="sr-only" for="task-input">New task</label>
+          <input id="task-input" class="task-input" type="text" maxlength="160" placeholder="What needs doing?" autocomplete="off" required>
+          <button class="add-button" type="submit">Add Task</button>
+        </form>
+        <div class="card-list" data-list="todo"></div>
+        <div class="empty-state">Add your first task above</div>
+      </section>
+
+      <section class="column" data-column="doing" aria-labelledby="doing-heading">
+        <header class="column-header">
+          <h2 id="doing-heading" class="column-title">Doing</h2>
+          <span class="count" data-count="doing">0</span>
+        </header>
+        <div class="card-list" data-list="doing"></div>
+        <div class="empty-state">Drop tasks here when work begins</div>
+      </section>
+
+      <section class="column" data-column="done" aria-labelledby="done-heading">
+        <header class="column-header">
+          <h2 id="done-heading" class="column-title">Done</h2>
+          <span class="count" data-count="done">0</span>
+        </header>
+        <div class="card-list" data-list="done"></div>
+        <div class="empty-state">Completed tasks will land here</div>
+      </section>
+    </section>
+    <p id="announcer" class="sr-only" aria-live="polite"></p>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const STORAGE_KEY = 'flowboard-tasks-v1';
+      const columns = ['todo', 'doing', 'done'];
+      const columnNames = { todo: 'To Do', doing: 'Doing', done: 'Done' };
+      const addForm = document.querySelector('#add-form');
+      const taskInput = document.querySelector('#task-input');
+      const announcer = document.querySelector('#announcer');
+      let tasks = loadTasks();
+      let draggedTaskId = null;
+
+      function makeId() {
+        return window.crypto?.randomUUID?.() ?? `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      function loadTasks() {
+        try {
+          const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          if (!Array.isArray(stored)) return [];
+          return stored.filter(task => task && typeof task.id === 'string' && typeof task.text === 'string' && columns.includes(task.column));
+        } catch {
+          return [];
+        }
+      }
+
+      function saveTasks() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        } catch {
+          announce('Changes could not be saved in this browser.');
+        }
+      }
+
+      function announce(message) {
+        announcer.textContent = '';
+        window.setTimeout(() => { announcer.textContent = message; }, 20);
+      }
+
+      function render() {
+        document.querySelectorAll('.card-list').forEach(list => { list.replaceChildren(); });
+
+        for (const task of tasks) {
+          document.querySelector(`[data-list="${task.column}"]`).append(createCard(task));
+        }
+
+        updateStats();
+      }
+
+      function createCard(task) {
+        const card = document.createElement('article');
+        const position = columns.indexOf(task.column);
+        card.className = 'task-card';
+        card.draggable = true;
+        card.tabIndex = 0;
+        card.dataset.id = task.id;
+        card.setAttribute('aria-label', `${task.text}, in ${columnNames[task.column]}`);
+
+        const text = document.createElement('p');
+        text.className = 'task-text';
+        text.textContent = task.text;
+
+        const remove = document.createElement('button');
+        remove.className = 'delete-button';
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Delete ${task.text}`);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => deleteTask(task.id, card));
+
+        const footer = document.createElement('div');
+        footer.className = 'card-actions';
+
+        const status = document.createElement('span');
+        status.className = 'status-label';
+        status.textContent = columnNames[task.column];
+
+        const controls = document.createElement('div');
+        controls.className = 'move-buttons';
+
+        const left = makeMoveButton('←', 'left', position === 0, () => moveTask(task.id, columns[position - 1]));
+        const right = makeMoveButton('→', 'right', position === columns.length - 1, () => moveTask(task.id, columns[position + 1]));
+        controls.append(left, right);
+        footer.append(status, controls);
+        card.append(text, remove, footer);
+
+        card.addEventListener('dragstart', event => {
+          draggedTaskId = task.id;
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', task.id);
+          requestAnimationFrame(() => card.classList.add('dragging'));
+        });
+
+        card.addEventListener('dragend', () => {
+          draggedTaskId = null;
+          card.classList.remove('dragging');
+          document.querySelectorAll('.column').forEach(column => column.classList.remove('drag-over'));
+        });
+
+        return card;
+      }
+
+      function makeMoveButton(symbol, direction, disabled, handler) {
+        const button = document.createElement('button');
+        button.className = 'move-button';
+        button.type = 'button';
+        button.textContent = symbol;
+        button.disabled = disabled;
+        button.setAttribute('aria-label', `Move task ${direction}`);
+        button.addEventListener('click', handler);
+        return button;
+      }
+
+      function addTask(text) {
+        const cleanText = text.trim();
+        if (!cleanText) return;
+        tasks.push({ id: makeId(), text: cleanText, column: 'todo' });
+        saveTasks();
+        render();
+        announce(`Added ${cleanText} to To Do.`);
+      }
+
+      function moveTask(id, destination) {
+        if (!columns.includes(destination)) return;
+        const task = tasks.find(item => item.id === id);
+        if (!task || task.column === destination) return;
+        task.column = destination;
+        saveTasks();
+        render();
+        announce(`Moved ${task.text} to ${columnNames[destination]}.`);
+      }
+
+      function deleteTask(id, card) {
+        const task = tasks.find(item => item.id === id);
+        if (!task) return;
+        card.classList.add('removing');
+        window.setTimeout(() => {
+          tasks = tasks.filter(item => item.id !== id);
+          saveTasks();
+          render();
+          announce(`Deleted ${task.text}.`);
+        }, 180);
+      }
+
+      function updateStats() {
+        const total = tasks.length;
+        const done = tasks.filter(task => task.column === 'done').length;
+        const percent = total ? Math.round((done / total) * 100) : 0;
+
+        document.querySelector('#total-tasks').textContent = total;
+        document.querySelector('#percent-complete').textContent = `${percent}% complete`;
+        document.querySelector('.progress-fill').style.width = `${percent}%`;
+        document.querySelector('.progress-track').setAttribute('aria-valuenow', String(percent));
+
+        for (const column of columns) {
+          document.querySelector(`[data-count="${column}"]`).textContent = tasks.filter(task => task.column === column).length;
+        }
+      }
+
+      addForm.addEventListener('submit', event => {
+        event.preventDefault();
+        addTask(taskInput.value);
+        taskInput.value = '';
+        taskInput.focus();
+      });
+
+      document.querySelectorAll('.column').forEach(column => {
+        column.addEventListener('dragover', event => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          column.classList.add('drag-over');
+        });
+
+        column.addEventListener('dragleave', event => {
+          if (!column.contains(event.relatedTarget)) column.classList.remove('drag-over');
+        });
+
+        column.addEventListener('drop', event => {
+          event.preventDefault();
+          column.classList.remove('drag-over');
+          const id = draggedTaskId || event.dataTransfer.getData('text/plain');
+          moveTask(id, column.dataset.column);
+        });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
